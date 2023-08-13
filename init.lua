@@ -15,7 +15,7 @@ obj.license = "MIT - https://opensource.org/licenses/MIT"
 
 -- things to configure
 
-obj.rowsToDisplay = 14 -- how many rows to display in the chooser
+obj.rowsToDisplay = 10 -- how many rows to display in the chooser
 
 -- for debugging purposes
 function obj:print_table(t, f)
@@ -38,7 +38,6 @@ theWindows:setDefaultFilter{}
 theWindows:setSortOrder(hs.window.filter.sortByFocusedLast)
 obj.currentWindows = {}
 obj.previousSelection = nil  -- the idea is that one switches back and forth between two windows all the time
-
 
 -- Start by saving all windows
 
@@ -82,7 +81,6 @@ function obj:focus_by_app(appName)
    end
    return nil
 end
-
 
 -- the hammerspoon tracking of windows seems to be broken
 -- we do it ourselves
@@ -128,7 +126,6 @@ theWindows:subscribe(hs.window.filter.windowCreated, callback_window_created)
 theWindows:subscribe(hs.window.filter.windowDestroyed, callback_window_created)
 theWindows:subscribe(hs.window.filter.windowFocused, callback_window_created)
 
-
 function obj:count_app_windows(currentApp)
    local count = 0
    for i,w in ipairs(obj.currentWindows) do
@@ -140,6 +137,12 @@ function obj:count_app_windows(currentApp)
    return count
 end
 
+function getEmacsBuffers()
+   local buffers = {}
+   result = hs.execute("/opt/homebrew/bin/emacsclient --eval \"(get-emacs-buffer-list)\""):sub(2, -3)
+   for buffer in result:gmatch("%S+") do buffers[#buffers+1]=buffer:sub(2, -2) end
+   return buffers
+end
 
 function obj:list_window_choices(onlyCurrentApp, currentWin)
    local windowChoices = {}
@@ -166,6 +169,11 @@ function obj:list_window_choices(onlyCurrentApp, currentWin)
          end
       end
    end
+
+   for i, w in ipairs(getEmacsBuffers()) do
+      table.insert(windowChoices, {text = w, subText = "Emacs"})
+   end
+
    return windowChoices;
 end
 
@@ -175,7 +183,7 @@ function obj:windowActivate(w)
     -- this fixes a bug when the application is a different screen 
     w:application():activate()
   else
-    hs.alert.show("unable fo focus " .. name)
+    hs.alert.show("unable to focus " .. name)
   end
 
 end  
@@ -194,7 +202,7 @@ function obj:selectWindow(onlyCurrentApp, moveToCurrent)
        end
        local v = choice["win"]
        if v then
-         hs.alert.show("doing something, we have a v")
+	 -- hs.alert.show("doing something, we have a v")
          print(v)
          if moveToCurrent then
            hs.alert.show("move to current")
@@ -211,7 +219,15 @@ function obj:selectWindow(onlyCurrentApp, moveToCurrent)
          v:focus()
          v:application():activate()
        else
-         hs.alert.show("unable fo focus " .. name)
+	  if choice["subText"] == "Emacs" then
+	     v = hs.application.get('org.gnu.Emacs'):mainWindow()
+	     local command = "/opt/homebrew/bin/emacsclient --eval \"(switch-to-buffer \\\"" .. choice["text"] .. "\\\")\""
+	     hs.execute(command)
+	     v:focus()
+	     v:application():activate()
+	  else
+	     hs.alert.show("unable to focus selected window")
+	  end
        end
    end)
 
@@ -257,7 +273,4 @@ function obj:bindHotkeys(mapping)
    hs.spoons.bindHotkeysToSpec(def, mapping)
 end
 
-
-
 return obj
-
